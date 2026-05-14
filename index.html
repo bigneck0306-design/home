@@ -1,0 +1,1464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>杭州房产收藏地图 · 55小区</title>
+  <!-- Leaflet CSS CDN -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    /* ========== CSS 变量（便于修改主题色） ========== */
+    :root {
+      --color-primary: #1a3a2a;
+      --color-primary-light: #2d5a3f;
+      --color-accent: #c9a96e;
+      --color-bg: #f5f3ef;
+      --color-card: #ffffff;
+      --color-text: #1a202c;
+      --color-text-secondary: #64748b;
+      --color-border: #e2e0dc;
+      --color-price-green: #27ae60;
+      --color-price-orange: #f39c12;
+      --color-price-red: #e74c3c;
+      --color-tier1: #c9a96e;
+      --color-tier2: #5b9bd5;
+      --color-tier3: #a0a0a0;
+      --color-decline: #e74c3c;
+      --color-pros: #27ae60;
+      --color-cons: #e67e22;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.15);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --sidebar-width: 400px;
+    }
+
+    /* ========== 基础重置 ========== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", "Hiragino Sans GB", "Helvetica Neue", Arial, sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+      height: 100vh; overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ========== 整体布局 ========== */
+    .app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ========== 顶部导航栏 ========== */
+    .header {
+      background: var(--color-primary);
+      color: #fff; padding: 0 16px; height: 52px;
+      display: flex; align-items: center; gap: 12px;
+      flex-shrink: 0; z-index: 1001; box-shadow: var(--shadow-md);
+    }
+    .header__logo { font-size: 16px; font-weight: 700; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
+    .header__logo span { font-size: 20px; }
+    .search-wrap { flex: 1; max-width: 400px; position: relative; margin-left: auto; }
+    .search-input {
+      width: 100%; height: 34px; padding: 0 34px 0 12px;
+      border: none; border-radius: 17px; background: rgba(255,255,255,0.15);
+      color: #fff; font-size: 13px; outline: none; transition: background 0.2s;
+    }
+    .search-input::placeholder { color: rgba(255,255,255,0.55); }
+    .search-input:focus { background: rgba(255,255,255,0.25); }
+    .search-clear {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: #fff; cursor: pointer;
+      font-size: 15px; display: none; padding: 2px 6px; border-radius: 50%;
+    }
+    .search-clear.visible { display: block; }
+    .search-clear:hover { background: rgba(255,255,255,0.2); }
+
+    /* ========== 主体内容区 ========== */
+    .main { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+    /* ========== 侧边栏 ========== */
+    .sidebar {
+      width: var(--sidebar-width); background: var(--color-card);
+      border-right: 1px solid var(--color-border);
+      display: flex; flex-direction: column; overflow: hidden; z-index: 100;
+    }
+    .sidebar__header {
+      padding: 12px 14px; border-bottom: 1px solid var(--color-border);
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .sidebar__title { font-size: 14px; font-weight: 600; }
+    .sidebar__count { font-size: 12px; color: var(--color-text-secondary); background: var(--color-bg); padding: 2px 10px; border-radius: 10px; }
+    .sidebar__list { flex: 1; overflow-y: auto; padding: 6px; -webkit-overflow-scrolling: touch; }
+    .sidebar__empty { text-align: center; padding: 40px 16px; color: var(--color-text-secondary); font-size: 14px; }
+
+    /* ========== 列表项卡片 ========== */
+    .property-card {
+      background: var(--color-card); border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 6px;
+      cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 10px;
+    }
+    .property-card:hover { border-color: var(--color-primary-light); box-shadow: var(--shadow-sm); transform: translateX(2px); }
+    .property-card.active { border-color: var(--color-primary-light); background: #eef5f0; box-shadow: var(--shadow-sm); }
+    .price-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .price-dot--green { background: var(--color-price-green); }
+    .price-dot--orange { background: var(--color-price-orange); }
+    .price-dot--red { background: var(--color-price-red); }
+    .property-card__info { flex: 1; min-width: 0; }
+    .property-card__name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .property-card__detail { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .property-card__price { font-weight: 500; color: var(--color-text); }
+    .property-card__decline { font-weight: 600; }
+    .property-card__decline.bad { color: #e74c3c; }
+    .property-card__decline.mid { color: #f39c12; }
+    .property-card__decline.good { color: #27ae60; }
+    .property-card__school { font-size: 10px; padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
+    .property-card__school.tier1 { background: #fdf2d0; color: #8b6914; }
+    .property-card__school.tier2 { background: #e0effb; color: #3a6d99; }
+    .property-card__school.tier3 { background: #f0f0f0; color: #777; }
+    .property-card__arrow { color: #bbb; font-size: 14px; flex-shrink: 0; }
+
+    /* ========== 地图区域 ========== */
+    .map-area { flex: 1; position: relative; background: #e8e8e8; }
+    #map { width: 100%; height: 100%; }
+
+    /* ========== 图例 ========== */
+    .legend {
+      position: absolute; bottom: 16px; right: 16px;
+      background: rgba(255,255,255,0.93); backdrop-filter: blur(8px);
+      border-radius: var(--radius-sm); padding: 10px 12px;
+      box-shadow: var(--shadow-md); z-index: 500; font-size: 11px;
+      display: flex; flex-direction: column; gap: 5px; min-width: 130px;
+    }
+    .legend__title { font-weight: 600; font-size: 11px; margin-bottom: 1px; }
+    .legend__item { display: flex; align-items: center; gap: 6px; }
+    .legend__dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .legend__dot--green { background: var(--color-price-green); }
+    .legend__dot--orange { background: var(--color-price-orange); }
+    .legend__dot--red { background: var(--color-price-red); }
+    .legend__label { color: var(--color-text-secondary); white-space: nowrap; font-size: 11px; }
+
+    /* ========== 弹窗覆盖 ========== */
+    .leaflet-popup-content-wrapper {
+      border-radius: var(--radius-md) !important; box-shadow: var(--shadow-lg) !important;
+      padding: 0 !important; overflow: hidden;
+    }
+    .leaflet-popup-content { margin: 0 !important; min-width: 300px; max-width: 380px; }
+    .leaflet-popup-close-button { top: 10px !important; right: 10px !important; color: #fff !important; font-size: 20px !important; z-index: 10; }
+    .leaflet-popup-close-button:hover { color: #ddd !important; }
+    .leaflet-container a.leaflet-popup-close-button { color: #fff !important; }
+
+    /* ========== 弹窗内容卡片 ========== */
+    .popup-card { font-size: 13px; max-height: 55vh; overflow-y: auto; }
+    .popup-card__header { background: var(--color-primary); color: #fff; padding: 12px 14px; }
+    .popup-card__name { font-size: 17px; font-weight: 700; }
+    .popup-card__sub { font-size: 11px; opacity: 0.85; margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .popup-card__body { padding: 12px 14px; }
+
+    /* 价格行 */
+    .popup-card__prices { display: flex; gap: 10px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--color-border); }
+    .popup-card__price-item { flex: 1; }
+    .popup-card__price-label { font-size: 10px; color: var(--color-text-secondary); margin-bottom: 1px; }
+    .popup-card__price-value { font-size: 18px; font-weight: 700; color: var(--color-primary); }
+    .popup-card__price-unit { font-size: 10px; color: var(--color-text-secondary); font-weight: 400; }
+    .popup-card__decline-badge {
+      display: inline-block; padding: 2px 7px; border-radius: 4px;
+      font-size: 12px; font-weight: 700;
+    }
+    .popup-card__decline-badge.high { background: #ffebee; color: #c0392b; }
+    .popup-card__decline-badge.mid { background: #fff8e1; color: #e67e22; }
+    .popup-card__decline-badge.low { background: #e8f5e9; color: #27ae60; }
+
+    /* 学区区块 */
+    .popup-card__school-section {
+      background: #f8f9fb; border-radius: var(--radius-sm);
+      padding: 10px 12px; margin-bottom: 10px;
+    }
+    .popup-card__school-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+    .popup-card__school-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 12px; }
+    .popup-card__school-name { flex: 1; }
+    .tier-badge {
+      font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 600; white-space: nowrap;
+    }
+    .tier-badge.tier1 { background: #fdf2d0; color: #8b6914; }
+    .tier-badge.tier2 { background: #e0effb; color: #3a6d99; }
+    .tier-badge.tier3 { background: #f0f0f0; color: #777; }
+
+    /* 配套 */
+    .popup-card__amenities { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--color-border); }
+    .popup-card__amenity-row { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.5; }
+    .popup-card__amenity-icon { font-size: 14px; flex-shrink: 0; width: 18px; text-align: center; }
+    .popup-card__amenity-text { color: var(--color-text-secondary); flex: 1; }
+
+    /* 优劣分析 */
+    .popup-card__analysis { margin-top: 2px; }
+    .popup-card__analysis-title { font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+    .popup-card__pros, .popup-card__cons { margin-bottom: 5px; }
+    .popup-card__pro-label { color: var(--color-pros); font-weight: 600; font-size: 12px; }
+    .popup-card__con-label { color: var(--color-cons); font-weight: 600; font-size: 12px; }
+    .popup-card__pro-item, .popup-card__con-item {
+      font-size: 11px; color: var(--color-text-secondary); margin-left: 12px; line-height: 1.6;
+    }
+
+    /* ========== 移动端底部抽屉 ========== */
+    .drawer-handle { display: none; width: 36px; height: 4px; background: #cbd5e0; border-radius: 2px; margin: 8px auto; }
+    .drawer-toggle-bar {
+      display: none; height: 44px; align-items: center; justify-content: center;
+      gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;
+      flex-shrink: 0; border-bottom: 1px solid var(--color-border);
+    }
+
+    /* ========== 响应式：移动端 ========== */
+    @media (max-width: 767px) {
+      .header { height: 44px; padding: 0 10px; gap: 8px; }
+      .header__logo { font-size: 13px; }
+      .header__logo span { font-size: 16px; }
+      .search-wrap { max-width: none; }
+      .search-input { height: 30px; font-size: 12px; padding: 0 30px 0 10px; }
+      .sidebar {
+        position: fixed; bottom: 0; left: 0; right: 0; width: 100%;
+        max-height: 58vh; border-right: none;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        box-shadow: 0 -4px 30px rgba(0,0,0,0.25);
+        transform: translateY(calc(100% - 52px));
+        transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+        z-index: 1000;
+      }
+      .sidebar.expanded { transform: translateY(0); }
+      .sidebar__header { display: none; }
+      .drawer-handle { display: block; }
+      .drawer-toggle-bar { display: flex; }
+      .legend { bottom: 60px; right: auto; left: 8px; font-size: 10px; padding: 6px 8px; gap: 3px; }
+      .leaflet-popup-content { min-width: 260px; max-width: calc(100vw - 30px); }
+      .popup-card { max-height: 45vh; }
+      .popup-card__name { font-size: 15px; }
+      .popup-card__price-value { font-size: 16px; }
+      .property-card__name { font-size: 13px; }
+      .property-card__detail { font-size: 10px; gap: 5px; }
+    }
+
+    @media (max-width: 400px) {
+      .header__logo { font-size: 11px; }
+      .leaflet-popup-content { min-width: 230px; max-width: calc(100vw - 20px); }
+      .popup-card { max-height: 40vh; }
+      .popup-card__name { font-size: 14px; }
+      .popup-card__body { padding: 8px 10px; }
+      .popup-card__price-value { font-size: 14px; }
+      .popup-card__prices { gap: 6px; }
+    }
+
+    /* ========== 滚动条 ========== */
+    .sidebar__list::-webkit-scrollbar, .popup-card::-webkit-scrollbar { width: 3px; }
+    .sidebar__list::-webkit-scrollbar-track, .popup-card::-webkit-scrollbar-track { background: transparent; }
+    .sidebar__list::-webkit-scrollbar-thumb, .popup-card::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header__logo"><span>🏠</span> 杭州房产收藏地图</div>
+      <div class="search-wrap">
+        <input type="text" class="search-input" id="searchInput" placeholder="搜索小区名称..." autocomplete="off" />
+        <button class="search-clear" id="searchClear" title="清除">✕</button>
+      </div>
+    </header>
+    <main class="main">
+      <aside class="sidebar" id="sidebar">
+        <div class="drawer-handle"></div>
+        <div class="drawer-toggle-bar" id="drawerToggle">
+          📋 房源列表 <span id="drawerCount">共 0 个房源</span> <span style="font-size:11px;">▲</span>
+        </div>
+        <div class="sidebar__header">
+          <span class="sidebar__title">📋 房源列表</span>
+          <span class="sidebar__count" id="sidebarCount">0 个房源</span>
+        </div>
+        <div class="sidebar__list" id="propertyList"></div>
+      </aside>
+      <section class="map-area">
+        <div id="map"></div>
+        <div class="legend">
+          <div class="legend__title">总价区间</div>
+          <div class="legend__item"><span class="legend__dot legend__dot--green"></span><span class="legend__label">&lt; 250 万</span></div>
+          <div class="legend__item"><span class="legend__dot legend__dot--orange"></span><span class="legend__label">250 ~ 450 万</span></div>
+          <div class="legend__item"><span class="legend__dot legend__dot--red"></span><span class="legend__label">≥ 450 万</span></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    /* =================================================================
+     *  杭州 55 小区房源数据
+     *  字段说明：
+     *    name          - 小区名称
+     *    district      - 所在行政区
+     *    lat/lng       - 经纬度 (WGS84)
+     *    totalPrice    - 总价（万元）
+     *    unitPrice     - 均价（元/㎡）
+     *    buildYear     - 建成年代
+     *    decline3Year  - 近三年降幅（百分比，负数表示下跌）
+     *    school.primary / primaryTier  - 对口小学 + 梯队 (1/2/3)
+     *    school.middle  / middleTier   - 对口初中 + 梯队 (1/2/3)
+     *    amenities     - 周边配套
+     *    pros / cons   - 优势 / 劣势
+     * ================================================================= */
+    var properties = [
+      /* ==================== 杭州55小区完整数据 ==================== */
+      {
+        id: 1, name: '灯塔豪园', district: '拱墅区',
+        lat: 30.312, lng: 120.170, totalPrice: 280, unitPrice: 29500, buildYear: 2012,
+        decline3Year: -22,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['3号线-香积寺路站 500m', '5号线-西文街站 800m'],
+          hospital: ['浙江省人民医院 2km', '杭州师范大学附属医院 2.5km'],
+          shopping: ['水晶城购物中心 600m', '远洋乐堤港 1.5km'],
+          other: ['城北体育公园 800m', '胜利河美食街 1.2km']
+        },
+        pros: ['拱墅核心地段，配套成熟', '卖鱼桥学区中上水平', '近地铁3/5号线双轨交', '城北体育公园步行可达'],
+        cons: ['房龄超10年，外立面显旧', '小户型为主，改善空间有限', '高峰期电梯等待时间较长']
+      },
+      {
+        id: 2, name: '紫荆家园', district: '拱墅区',
+        lat: 30.313, lng: 120.139, totalPrice: 310, unitPrice: 33500, buildYear: 2008,
+        decline3Year: -25,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['3号线-香积寺路站 650m', '5号线-拱宸桥东站 800m'],
+          hospital: ['杭州师范大学附属医院 1km', '浙江省人民医院 2km'],
+          shopping: ['运河上街 600m', '远洋乐堤港 1.3km'],
+          other: ['京杭大运河 300m', '拱宸桥 500m', '运河广场 400m']
+        },
+        pros: ['紧邻京杭大运河，景观好', '拱宸桥板块成熟配套', '卖鱼桥学区加持'],
+        cons: ['2008年小区，人车不分流', '停车位严重不足', '部分楼栋临街较吵']
+      },
+      {
+        id: 3, name: '紫金公寓', district: '西湖区',
+        lat: 30.276, lng: 120.098, totalPrice: 240, unitPrice: 31800, buildYear: 1993,
+        decline3Year: -24,
+        school: { primary: '文三街小学', primaryTier: 1, middle: '杭州市第十三中学', middleTier: 1 },
+        amenities: {
+          subway: ['19号线-五联站 400m', '2号线-丰潭路站 1.2km'],
+          hospital: ['浙江省立同德医院 1.5km'],
+          shopping: ['城西银泰城 1.5km', '西城广场 1.2km'],
+          other: ['西溪湿地 2.5km', '浙江大学紫金港校区 3km']
+        },
+        pros: ['第一梯队双学区！文三街+十三中', '城西核心区，生活便利', '总价门槛低，学区刚需首选'],
+        cons: ['1993年建成，房龄超30年', '无电梯（多层楼梯房）', '停车极其困难', '户型偏老，暗厅居多']
+      },
+      {
+        id: 4, name: '宝嘉誉峰', district: '拱墅区',
+        lat: 30.338, lng: 120.127, totalPrice: 480, unitPrice: 45500, buildYear: 2016,
+        decline3Year: -18,
+        school: { primary: '卖鱼桥小学文澜校区', primaryTier: 2, middle: '杭州市文澜中学', middleTier: 1 },
+        amenities: {
+          subway: ['10号线-渡驾桥站 700m', '5号线-大运河站 1.2km'],
+          hospital: ['浙江省立同德医院 2.5km', '浙江医院三墩院区 2km'],
+          shopping: ['万达广场 300m', '城西银泰城 1.5km'],
+          other: ['运河亚运公园 1.2km', '北部软件园 500m']
+        },
+        pros: ['文澜中学学区（杭州初中第一梯队）', '2016年次新小区，品质好', '紧邻万达广场', '双地铁覆盖'],
+        cons: ['总价门槛高', '得房率偏低', '申花板块供应量大，竞争激烈']
+      },
+      {
+        id: 5, name: '翠语彩虹里', district: '西湖区',
+        lat: 30.358, lng: 120.074, totalPrice: 195, unitPrice: 22500, buildYear: 2023,
+        decline3Year: -15,
+        school: { primary: '杭州市求是教育集团浙大附小', primaryTier: 1, middle: '杭州市第十五中学', middleTier: 2 },
+        amenities: {
+          subway: ['2号线-白洋站 800m'],
+          hospital: ['浙江医院三墩院区 3km'],
+          shopping: ['紫金港龙湖天街 3km', '金地广场 2km'],
+          other: ['兰里景区 1.5km', '良渚生态园 2km']
+        },
+        pros: ['低总价上车盘', '2023年滨江造次新房', '西湖区学籍', '三墩北规划利好'],
+        cons: ['距离主城区较远', '初中仅第二梯队', '地铁步行距离较远', '周边配套尚在完善']
+      },
+      {
+        id: 6, name: '中山花园', district: '拱墅区',
+        lat: 30.283, lng: 120.167, totalPrice: 360, unitPrice: 38500, buildYear: 2006,
+        decline3Year: -20,
+        school: { primary: '长寿桥小学', primaryTier: 2, middle: '春蕾中学', middleTier: 2 },
+        amenities: {
+          subway: ['1号线-西湖文化广场站 400m', '1号线-打铁关站 900m'],
+          hospital: ['杭州市儿童医院 600m', '浙江省人民医院 1.2km'],
+          shopping: ['西湖文化广场银泰 400m', '武林广场 1km', '杭州大厦 1.2km'],
+          other: ['西湖文化广场 300m', '京杭大运河 500m', '武林广场 1km']
+        },
+        pros: ['武林商圈辐射，地段优越', '长寿桥+春蕾双二梯队学区', '西湖文化广场步行可达', '双地铁覆盖'],
+        cons: ['房龄较老，小区环境一般', '总价高，单价逼近4万', '老小区停车困难', '朝晖路沿线较嘈杂']
+      },
+      {
+        id: 7, name: '天成嘉苑', district: '上城区',
+        lat: 30.282, lng: 120.175, totalPrice: 340, unitPrice: 36000, buildYear: 2013,
+        decline3Year: -21,
+        school: { primary: '濮家小学', primaryTier: 3, middle: '杭州市采荷中学濮家校区', middleTier: 2 },
+        amenities: {
+          subway: ['1号线-闸弄口站 300m', '1号线-打铁关站 1km'],
+          hospital: ['解放军903医院 600m', '杭州市儿童医院 1.5km'],
+          shopping: ['汇和城 500m', '衣之家城市广场 1km'],
+          other: ['运河公园 400m', '濮家运河广场 500m']
+        },
+        pros: ['紧邻地铁1号线闸弄口站', '采荷中学学区（初中第二梯队）', '运河景观资源', '总价适中'],
+        cons: ['小学学区第三梯队', '临天城路主干道噪音', '小区规模小，绿化有限']
+      },
+      {
+        id: 8, name: '城市心境', district: '西湖区',
+        lat: 30.297, lng: 120.098, totalPrice: 420, unitPrice: 43000, buildYear: 2016,
+        decline3Year: -19,
+        school: { primary: '杭州市省府路小学', primaryTier: 2, middle: '杭州市翠苑中学', middleTier: 2 },
+        amenities: {
+          subway: ['3号线-古墩路站 200m', '19号线-五联站 800m'],
+          hospital: ['浙江省立同德医院 1.5km', '浙江医院灵隐院区 3km'],
+          shopping: ['城西银泰城 2km', '西城广场 1.5km'],
+          other: ['西溪湿地 2km', '浙江大学玉泉校区 2.5km']
+        },
+        pros: ['紧邻地铁3号线古墩路站', '省府路+翠苑双二梯队学区', '城西成熟生活区', '近西溪湿地'],
+        cons: ['周边老旧小区多，界面一般', '天目山路车流量大', '价格高位横盘']
+      },
+      {
+        id: 9, name: '漾河公寓', district: '拱墅区',
+        lat: 30.329, lng: 120.167, totalPrice: 260, unitPrice: 27800, buildYear: 2010,
+        decline3Year: -23,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['5号线-西文街站 600m', '3号线-沈半路站 1km'],
+          hospital: ['浙江省人民医院 1.8km', '树兰（杭州）医院 2km'],
+          shopping: ['水晶城购物中心 800m', '新天地购物中心 1.5km'],
+          other: ['城北体育公园 500m', '浙江省自然博物院 1.2km']
+        },
+        pros: ['总价低，拱墅刚需首选', '卖鱼桥学区保障', '近地铁5号线', '城北体育公园附近宜居'],
+        cons: ['房龄偏老', '小户型居多', '小区物业管理一般']
+      },
+      {
+        id: 10, name: '香樟公寓', district: '西湖区',
+        lat: 30.277, lng: 120.111, totalPrice: 350, unitPrice: 37000, buildYear: 2007,
+        decline3Year: -22,
+        school: { primary: '文三街小学', primaryTier: 1, middle: '杭州市第十三中学', middleTier: 1 },
+        amenities: {
+          subway: ['2号线-丰潭路站 400m', '19号线-五联站 700m'],
+          hospital: ['浙江省立同德医院 1km'],
+          shopping: ['城西银泰城 1.2km', '西城广场 800m'],
+          other: ['西溪湿地 2km', '浙江大学紫金港 2.5km']
+        },
+        pros: ['第一梯队双学区（文三街+十三中）', '城西成熟生活区', '近地铁2号线', '配套齐全'],
+        cons: ['2007年建成，部分设施老旧', '多层无电梯楼栋较多', '停车位紧张', '小区内部人车不分流']
+      },
+      {
+        id: 11, name: '新安铭苑', district: '上城区',
+        lat: 30.282, lng: 120.186, totalPrice: 380, unitPrice: 40000, buildYear: 2014,
+        decline3Year: -19,
+        school: { primary: '濮家小学', primaryTier: 3, middle: '杭州市采荷中学濮家校区', middleTier: 2 },
+        amenities: {
+          subway: ['1号线-闸弄口站 500m', '4号线-新风站 800m'],
+          hospital: ['解放军903医院 800m', '杭州市儿童医院 1.5km'],
+          shopping: ['汇和城 600m', '衣之家城市广场 1km'],
+          other: ['运河公园 500m', '濮家运河广场 400m']
+        },
+        pros: ['上城区闸弄口核心地段', '采荷中学学区（初中第二梯队）', '近地铁1号线', '运河景观'],
+        cons: ['小学第三梯队', '小区体量小，缺乏社区感', '周边老旧小区多', '临近铁路']
+      },
+      {
+        id: 12, name: '淮矿东元府', district: '上城区',
+        lat: 30.295, lng: 120.223, totalPrice: 330, unitPrice: 35000, buildYear: 2017,
+        decline3Year: -22,
+        school: { primary: '杭州市夏衍小学', primaryTier: 3, middle: '杭州市夏衍中学', middleTier: 3 },
+        amenities: {
+          subway: ['1号线-彭埠站 500m', '4号线-彭埠站 500m'],
+          hospital: ['浙医二院江干院区 2km'],
+          shopping: ['杭州之翼购物中心 600m', '万象汇 1.5km'],
+          other: ['元宝塘公园 200m', '杭州东站 1.2km']
+        },
+        pros: ['紧邻地铁1/4号线彭埠站', '2017年次新小区', '近杭州东站枢纽', '城东新城核心'],
+        cons: ['学区第三梯队', '城东新城商务氛围浓', '近铁路线，有噪音']
+      },
+      {
+        id: 13, name: '三宝郡庭', district: '拱墅区',
+        lat: 30.304, lng: 120.124, totalPrice: 245, unitPrice: 26800, buildYear: 2011,
+        decline3Year: -24,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['5号线-萍水街站 800m', '10号线-翠柏路站 1km'],
+          hospital: ['浙江省立同德医院 2km'],
+          shopping: ['城西银泰城 1km', '大悦城 1.5km'],
+          other: ['运河亚运公园 1.2km', '小河直街 1km']
+        },
+        pros: ['总价低，刚需友好', '卖鱼桥学区保障', '近城西银泰', '双地铁覆盖'],
+        cons: ['回迁安置房小区', '租户比例高', '物业管理一般', '部分户型较差']
+      },
+      {
+        id: 14, name: '杨乐府', district: '拱墅区',
+        lat: 30.315, lng: 120.175, totalPrice: 220, unitPrice: 24000, buildYear: 2018,
+        decline3Year: -28,
+        school: { primary: '杭州市求知小学', primaryTier: 3, middle: '杭州市风华中学', middleTier: 3 },
+        amenities: {
+          subway: ['5号线-东新园站 800m', '3号线-新天地街站 1.2km'],
+          hospital: ['树兰（杭州）医院 2km', '浙江省人民医院 3km'],
+          shopping: ['新天地购物中心 1km', '中大银泰城 1.5km'],
+          other: ['城北体育公园 1.5km', '浙江省自然博物院 1.8km']
+        },
+        pros: ['低总价', '2018年次新房', '三塘板块成熟', '近新天地商圈'],
+        cons: ['学区第三梯队', '回迁安置小区', '近三年降幅大(-28%)']
+      },
+      {
+        id: 15, name: '禹洲宋都望林府', district: '拱墅区',
+        lat: 30.336, lng: 120.117, totalPrice: 460, unitPrice: 44000, buildYear: 2021,
+        decline3Year: -16,
+        school: { primary: '卖鱼桥小学文澜校区', primaryTier: 2, middle: '杭州市文澜中学', middleTier: 1 },
+        amenities: {
+          subway: ['10号线-祥园路站 600m', '5号线-大运河站 1.2km'],
+          hospital: ['浙江医院三墩院区 2km', '浙江省立同德医院 3km'],
+          shopping: ['万达广场 800m', '城西银泰城 2km'],
+          other: ['运河亚运公园 1.5km', '北部软件园 500m']
+        },
+        pros: ['文澜中学学区（第一梯队初中）', '2021年次新，品质标杆', '近10号线', '申花北核心地段'],
+        cons: ['总价高，首付压力大', '得房率偏低（高层）', '板块内竞品多']
+      },
+      {
+        id: 16, name: '庆隆苑三区', district: '拱墅区',
+        lat: 30.290, lng: 120.125, totalPrice: 270, unitPrice: 29000, buildYear: 2012,
+        decline3Year: -23,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['5号线-萍水街站 800m', '10号线-翠柏路站 1km'],
+          hospital: ['浙江省立同德医院 2km'],
+          shopping: ['城西银泰城 1km', '大悦城 1.2km'],
+          other: ['余杭塘河绿道 200m', '小河直街 1.5km']
+        },
+        pros: ['近城西银泰，商业配套好', '卖鱼桥学区', '双地铁便利', '总价适中'],
+        cons: ['回迁安置房，品质一般', '租户多', '部分楼栋朝向差', '小区内部环境一般']
+      },
+      {
+        id: 17, name: '沈家星盛府', district: '拱墅区',
+        lat: 30.322, lng: 120.185, totalPrice: 235, unitPrice: 25500, buildYear: 2019,
+        decline3Year: -25,
+        school: { primary: '杭州市求知小学', primaryTier: 3, middle: '杭州市风华中学', middleTier: 3 },
+        amenities: {
+          subway: ['5号线-东新园站 600m', '3号线-新天地街站 1km'],
+          hospital: ['树兰（杭州）医院 1.5km'],
+          shopping: ['中大银泰城 800m', '新天地购物中心 1.2km'],
+          other: ['浙江省自然博物院 1.5km', '城北体育公园 2.5km']
+        },
+        pros: ['2019年次新房', '总价低', '近东新园地铁站', '近中大银泰'],
+        cons: ['学区第三梯队', '回迁安置性质', '周边环境一般', '距离主城核心稍远']
+      },
+      {
+        id: 18, name: '长浜龙吟轩', district: '拱墅区',
+        lat: 30.323, lng: 120.187, totalPrice: 250, unitPrice: 27200, buildYear: 2020,
+        decline3Year: -24,
+        school: { primary: '杭州市求知小学', primaryTier: 3, middle: '杭州市风华中学', middleTier: 3 },
+        amenities: {
+          subway: ['5号线-东新园站 900m', '3号线-新天地街站 1.2km'],
+          hospital: ['树兰（杭州）医院 1.5km'],
+          shopping: ['中大银泰城 1km', '新天地购物中心 1.5km'],
+          other: ['浙江省自然博物院 1.2km', '城北体育公园 2.5km']
+        },
+        pros: ['2020年次新房', '近东新板块核心', '总价低'],
+        cons: ['学区较弱（第三梯队）', '公共交通待完善', '界面有待提升']
+      },
+      {
+        id: 19, name: '诸葛龙吟', district: '拱墅区',
+        lat: 30.320, lng: 120.186, totalPrice: 255, unitPrice: 27800, buildYear: 2020,
+        decline3Year: -24,
+        school: { primary: '杭州市求知小学', primaryTier: 3, middle: '杭州市风华中学', middleTier: 3 },
+        amenities: {
+          subway: ['5号线-东新园站 600m', '3号线-新天地街站 1km'],
+          hospital: ['树兰（杭州）医院 1.2km'],
+          shopping: ['中大银泰城 800m', '新天地购物中心 1.2km'],
+          other: ['浙江省自然博物院 1km', '城北体育公园 2km']
+        },
+        pros: ['2020年次新房', '紧邻东新园地铁站', '低总价上车盘'],
+        cons: ['学区第三梯队', '小区体量小', '周边界面待改善']
+      },
+      {
+        id: 20, name: '景致公寓', district: '拱墅区',
+        lat: 30.335, lng: 120.120, totalPrice: 200, unitPrice: 21800, buildYear: 2015,
+        decline3Year: -27,
+        school: { primary: '杭州市北秀小学', primaryTier: 3, middle: '杭州市康桥中学', middleTier: 3 },
+        amenities: {
+          subway: ['10号线-祥园路站 900m', '4号线-平安桥站 1.8km'],
+          hospital: ['浙江医院三墩院区 2km', '杭州师范大学附属医院 3km'],
+          shopping: ['万达广场 1.2km', '运河上街 2.5km'],
+          other: ['运河新城规划区 1.5km', '北部软件园 1km']
+        },
+        pros: ['总价极低，刚需上车首选', '2015年次新', '运河新城规划远期利好'],
+        cons: ['学区第三梯队', '地铁步行距离较远', '周边配套欠缺', '近三年降幅大(-27%)']
+      },
+      {
+        id: 21, name: '宸颂轩', district: '上城区',
+        lat: 30.305, lng: 120.275, totalPrice: 430, unitPrice: 42000, buildYear: 2022,
+        decline3Year: -12,
+        school: { primary: '杭州市东城实验学校', primaryTier: 3, middle: '杭州市东城中学', middleTier: 3 },
+        amenities: {
+          subway: ['1号线-九堡站 800m', '9号线-九和路站 1km'],
+          hospital: ['杭州市第九人民医院 2km'],
+          shopping: ['九堡金海城 500m', '龙湖杭州国芳天街 1.5km'],
+          other: ['钱塘江二桥绿道 1.5km', '阿里体育中心 2km']
+        },
+        pros: ['2022年龙湖品质次新', '九堡板块核心', '总价适中'],
+        cons: ['学区第三梯队', '九堡板块界面一般', '距传统市中心较远']
+      },
+      {
+        id: 22, name: '广电雅苑', district: '拱墅区',
+        lat: 30.317, lng: 120.189, totalPrice: 310, unitPrice: 33000, buildYear: 2015,
+        decline3Year: -22,
+        school: { primary: '杭州市求知小学', primaryTier: 3, middle: '杭州市风华中学', middleTier: 3 },
+        amenities: {
+          subway: ['3号线-新天地街站 900m', '4号线-华中南路站 1km'],
+          hospital: ['树兰（杭州）医院 1.5km'],
+          shopping: ['新天地购物中心 800m', '中大银泰城 1.2km'],
+          other: ['浙江省自然博物院 1.5km', '跨贸小镇 1km']
+        },
+        pros: ['广电系统家属院，住户素质高', '近新天地商圈', '总价适中'],
+        cons: ['学区第三梯队', '广电系统家属院，交易受限', '小区规模小']
+      },
+      {
+        id: 23, name: '枫宜晓庐', district: '拱墅区',
+        lat: 30.337, lng: 120.191, totalPrice: 450, unitPrice: 46000, buildYear: 2022,
+        decline3Year: -13,
+        school: { primary: '杭州市求知小学', primaryTier: 3, middle: '杭州市风华中学', middleTier: 3 },
+        amenities: {
+          subway: ['3号线-汽轮广场站 300m', '4号线-华中南路站 1.2km'],
+          hospital: ['树兰（杭州）医院 2km'],
+          shopping: ['中大银泰城 1.5km', '新天地购物中心 2km'],
+          other: ['半山国家森林公园 2.5km', '浙江省自然博物院 2km']
+        },
+        pros: ['2022年万科交控联合开发', '紧邻地铁3号线', '小高层低密社区', '品质标杆'],
+        cons: ['学区第三梯队', '石桥/北景园板块认知度低', '周边配套一般', '高位运行']
+      },
+      {
+        id: 24, name: '都景公寓', district: '拱墅区',
+        lat: 30.298, lng: 120.140, totalPrice: 320, unitPrice: 34000, buildYear: 2013,
+        decline3Year: -21,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['5号线-大运河站 600m', '3号线-香积寺路站 1km'],
+          hospital: ['杭州师范大学附属医院 1km'],
+          shopping: ['大悦城 300m', '远洋乐堤港 1km'],
+          other: ['余杭塘河绿道 100m', '小河直街 500m']
+        },
+        pros: ['紧邻大悦城', '卖鱼桥学区', '近地铁5号线', '小河直街历史文化氛围'],
+        cons: ['回迁安置房为主', '小区环境一般', '部分户型差']
+      },
+      {
+        id: 25, name: '世纪坊', district: '上城区',
+        lat: 30.238, lng: 120.190, totalPrice: 550, unitPrice: 52000, buildYear: 1998,
+        decline3Year: -15,
+        school: { primary: '胜利小学', primaryTier: 2, middle: '杭州市采荷中学', middleTier: 2 },
+        amenities: {
+          subway: ['1号线-近江站 700m', '4号线-近江站 700m'],
+          hospital: ['邵逸夫医院 2km', '杭州市妇产科医院 1.5km'],
+          shopping: ['天虹购物中心 1.5km', '万象城 2.5km'],
+          other: ['钱塘江绿道 400m', '城市阳台 2km', '市民中心 2km']
+        },
+        pros: ['胜利+采荷双二梯队学区', '近江板块成熟', '近钱塘江', '双地铁近江站'],
+        cons: ['1998年极老小区', '无电梯多层', '停车极其困难', '小区环境一般']
+      },
+      {
+        id: 26, name: '方正荷塘月色', district: '拱墅区',
+        lat: 30.338, lng: 120.126, totalPrice: 350, unitPrice: 37000, buildYear: 2015,
+        decline3Year: -21,
+        school: { primary: '卖鱼桥小学文澜校区', primaryTier: 2, middle: '杭州市文澜中学', middleTier: 1 },
+        amenities: {
+          subway: ['10号线-渡驾桥站 800m', '5号线-大运河站 1km'],
+          hospital: ['浙江医院三墩院区 2.5km'],
+          shopping: ['万达广场 400m', '城西银泰城 2km'],
+          other: ['运河亚运公园 1.5km', '北部软件园 600m']
+        },
+        pros: ['文澜中学第一梯队学区', '近万达广场', '申花板块'],
+        cons: ['不靠地铁，通勤不便', '2015年小区，品质中等', '临石祥路噪音']
+      },
+      {
+        id: 27, name: '阳光郡', district: '拱墅区',
+        lat: 30.345, lng: 120.110, totalPrice: 290, unitPrice: 30500, buildYear: 2014,
+        decline3Year: -24,
+        school: { primary: '杭州市长阳小学', primaryTier: 3, middle: '杭州市长阳中学', middleTier: 3 },
+        amenities: {
+          subway: ['4号线-平安桥站 1.5km', '10号线-祥园路站 1.8km'],
+          hospital: ['浙江医院三墩院区 2km', '杭州师范大学附属医院 3km'],
+          shopping: ['万达广场 1.5km', '麦德龙 1km'],
+          other: ['运河新城 1.5km', '康桥花海 2km']
+        },
+        pros: ['总价偏低', '2014年小区，品质尚可', '莫干山路沿线交通便利'],
+        cons: ['学区第三梯队', '距地铁较远', '周边配套不够成熟', '降幅较大(-24%)']
+      },
+      {
+        id: 28, name: '德信北海公园', district: '拱墅区',
+        lat: 30.335, lng: 120.124, totalPrice: 410, unitPrice: 43000, buildYear: 2018,
+        decline3Year: -18,
+        school: { primary: '卖鱼桥小学文澜校区', primaryTier: 2, middle: '杭州市文澜中学', middleTier: 1 },
+        amenities: {
+          subway: ['10号线-渡驾桥站 700m', '5号线-大运河站 1km'],
+          hospital: ['浙江医院三墩院区 2km'],
+          shopping: ['万达广场 600m', '城西银泰城 2km'],
+          other: ['运河亚运公园 1.2km', '北部软件园 400m']
+        },
+        pros: ['文澜中学第一梯队学区', '2018年次新，德信品质', '近万达广场', '北软板块核心'],
+        cons: ['总价偏高', '得房率一般', '板块供应量大，去化压力']
+      },
+      {
+        id: 29, name: '方正御星', district: '拱墅区',
+        lat: 30.337, lng: 120.128, totalPrice: 380, unitPrice: 40000, buildYear: 2016,
+        decline3Year: -20,
+        school: { primary: '卖鱼桥小学文澜校区', primaryTier: 2, middle: '杭州市文澜中学', middleTier: 1 },
+        amenities: {
+          subway: ['10号线-渡驾桥站 500m', '5号线-大运河站 1.2km'],
+          hospital: ['浙江医院三墩院区 2km'],
+          shopping: ['万达广场 200m', '城西银泰城 2km'],
+          other: ['运河亚运公园 1.5km', '北部软件园 600m']
+        },
+        pros: ['文澜中学第一梯队学区', '紧邻万达广场', '近10号线地铁', '申花北核心'],
+        cons: ['2016年，房龄渐长', '方正品牌一般', '小户型为主，改善空间有限']
+      },
+      {
+        id: 30, name: '中国铁建西湖国际城', district: '西湖区',
+        lat: 30.330, lng: 120.080, totalPrice: 340, unitPrice: 36000, buildYear: 2018,
+        decline3Year: -20,
+        school: { primary: '杭州市求是教育集团浙大附小', primaryTier: 1, middle: '杭州市第十五中学', middleTier: 2 },
+        amenities: {
+          subway: ['2号线-三墩站 1.2km', '4号线-紫金港路站 1.5km'],
+          hospital: ['浙江医院三墩院区 2km'],
+          shopping: ['紫金港龙湖天街 2km', '金地广场 1.5km'],
+          other: ['浙江大学紫金港校区 2.5km', '兰里景区 1km']
+        },
+        pros: ['求是小学（第一梯队）学区', '2018年央企品质盘', '近浙大紫金港，人文氛围好', '三墩板块成熟'],
+        cons: ['初中仅第二梯队', '地铁步行距离偏长', '三墩板块界面新旧混杂', '近绕城高速']
+      },
+      {
+        id: 31, name: '滨江春语蓝庭', district: '拱墅区',
+        lat: 30.336, lng: 120.192, totalPrice: 440, unitPrice: 45000, buildYear: 2021,
+        decline3Year: -15,
+        school: { primary: '杭州市求知小学', primaryTier: 3, middle: '杭州市风华中学', middleTier: 3 },
+        amenities: {
+          subway: ['3号线-汽轮广场站 600m', '4号线-华中南路站 1.2km'],
+          hospital: ['树兰（杭州）医院 2.5km'],
+          shopping: ['中大银泰城 1.8km', '新天地购物中心 2.5km'],
+          other: ['半山国家森林公园 2km', '浙江省自然博物院 2.5km']
+        },
+        pros: ['2021年滨江品质标杆', '紧邻地铁3号线', '滨江品牌溢价', '小高层低密'],
+        cons: ['学区第三梯队', '石桥/华丰板块非传统高端区', '周边界面一般']
+      },
+      {
+        id: 32, name: '联发北秀观云', district: '拱墅区',
+        lat: 30.348, lng: 120.138, totalPrice: 370, unitPrice: 39000, buildYear: 2020,
+        decline3Year: -19,
+        school: { primary: '卖鱼桥小学文澜校区', primaryTier: 2, middle: '杭州市文澜中学', middleTier: 1 },
+        amenities: {
+          subway: ['4号线-杭钢站 600m', '3号线-善贤站 1.5km'],
+          hospital: ['杭州师范大学附属医院 2.5km'],
+          shopping: ['中大银泰城 1.5km', '万达广场 2.5km'],
+          other: ['半山国家森林公园 1.5km', '运河新城 2km']
+        },
+        pros: ['文澜中学学区', '2020年次新房', '近4号线杭钢站', '半山森林公园环境好'],
+        cons: ['距传统商圈稍远', '桃源板块发展中', '联发品牌力一般']
+      },
+      {
+        id: 33, name: '古墩彩虹轩', district: '西湖区',
+        lat: 30.352, lng: 120.078, totalPrice: 300, unitPrice: 32000, buildYear: 2016,
+        decline3Year: -22,
+        school: { primary: '杭州市求是教育集团浙大附小', primaryTier: 1, middle: '杭州市第十五中学', middleTier: 2 },
+        amenities: {
+          subway: ['2号线-白洋站 300m'],
+          hospital: ['浙江医院三墩院区 3km'],
+          shopping: ['金地广场 1.2km', '紫金港龙湖天街 3km'],
+          other: ['兰里景区 1.5km', '良渚生态园 2.5km']
+        },
+        pros: ['求是小学（第一梯队）学区', '紧邻2号线白洋站', '低总价西湖区学籍', '三墩北刚需首选'],
+        cons: ['古墩路沿线噪音粉尘', '初中仅第二梯队', '周边商业配套不够成熟']
+      },
+      {
+        id: 34, name: '协安紫郡', district: '西湖区',
+        lat: 30.330, lng: 120.080, totalPrice: 330, unitPrice: 34500, buildYear: 2015,
+        decline3Year: -21,
+        school: { primary: '杭州市求是教育集团浙大附小', primaryTier: 1, middle: '杭州市第十五中学', middleTier: 2 },
+        amenities: {
+          subway: ['2号线-三墩站 1.2km', '4号线-紫金港路站 1.5km'],
+          hospital: ['浙江医院三墩院区 1.8km'],
+          shopping: ['紫金港龙湖天街 2km', '金地广场 1.5km'],
+          other: ['浙江大学紫金港校区 2.5km', '兰里景区 1km']
+        },
+        pros: ['求是小学（第一梯队）学区', '三墩配套成熟', '总价适中', '西湖区学籍'],
+        cons: ['2015年小区，设施开始老化', '协安品牌力一般', '近绕城及三墩互通，局部噪音']
+      },
+      {
+        id: 35, name: '协安蓝郡', district: '余杭区',
+        lat: 30.345, lng: 120.085, totalPrice: 340, unitPrice: 35500, buildYear: 2016,
+        decline3Year: -20,
+        school: { primary: '余杭区良渚二小', primaryTier: 3, middle: '余杭区良渚二中', middleTier: 3 },
+        amenities: {
+          subway: ['2号线-墩祥街站 400m'],
+          hospital: ['浙江医院三墩院区 2.5km'],
+          shopping: ['金地广场 600m', '西田城 1.2km'],
+          other: ['浙江交通职业技术学院 300m', '兰里景区 2km']
+        },
+        pros: ['紧邻2号线墩祥街站', '2016年次新', '金地广场配套', '近金家渡成熟区'],
+        cons: ['学区第三梯队（余杭区）', '余杭区学籍', '与紫郡同开发商，同质化竞争']
+      },
+      {
+        id: 36, name: '锦文雅苑', district: '拱墅区',
+        lat: 30.338, lng: 120.135, totalPrice: 400, unitPrice: 42000, buildYear: 2019,
+        decline3Year: -17,
+        school: { primary: '卖鱼桥小学文澜校区', primaryTier: 2, middle: '杭州市文澜中学', middleTier: 1 },
+        amenities: {
+          subway: ['5号线-大运河站 800m', '10号线-渡驾桥站 1km'],
+          hospital: ['杭州师范大学附属医院 1.5km'],
+          shopping: ['万达广场 700m', '运河上街 1.5km'],
+          other: ['京杭大运河 500m', '桥西历史文化街区 1km']
+        },
+        pros: ['文澜中学第一梯队学区', '2019年次新', '近京杭大运河', '桥西板块成熟'],
+        cons: ['总价高', '含回迁房，小区混合', '周边回迁房较多']
+      },
+      {
+        id: 37, name: '名城燕园', district: '拱墅区',
+        lat: 30.310, lng: 120.142, totalPrice: 265, unitPrice: 28500, buildYear: 2011,
+        decline3Year: -23,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['10号线-北大桥站 900m', '5号线-大运河站 1.2km'],
+          hospital: ['杭州师范大学附属医院 1.5km'],
+          shopping: ['大悦城 800m', '远洋乐堤港 1.5km'],
+          other: ['小河直街 400m', '京杭大运河 500m']
+        },
+        pros: ['卖鱼桥学区', '总价低', '小河直街历史文化氛围', '运河景观'],
+        cons: ['房龄超10年', '名城品牌一般', '小区体量小', '部分楼栋沿街']
+      },
+      {
+        id: 38, name: '绿都云和湖', district: '西湖区',
+        lat: 30.345, lng: 120.075, totalPrice: 370, unitPrice: 39000, buildYear: 2020,
+        decline3Year: -18,
+        school: { primary: '杭州市求是教育集团浙大附小', primaryTier: 1, middle: '杭州市第十五中学', middleTier: 2 },
+        amenities: {
+          subway: ['2号线-白洋站 700m'],
+          hospital: ['浙江医院三墩院区 3km'],
+          shopping: ['金地广场 1km', '紫金港龙湖天街 3.5km'],
+          other: ['云谷产业园区 2km', '西湖大学 3km', '兰里景区 1.5km']
+        },
+        pros: ['2020年次新品质盘', '求是小学（第一梯队）学区', '云谷/西湖大学产城融合', '绿都品质较好'],
+        cons: ['地铁较远', '三墩北板块商业欠缺', '周边开发中，界面待成型']
+      },
+      {
+        id: 39, name: '金地繁华里', district: '拱墅区',
+        lat: 30.315, lng: 120.125, totalPrice: 390, unitPrice: 41000, buildYear: 2017,
+        decline3Year: -19,
+        school: { primary: '卖鱼桥小学文澜校区', primaryTier: 2, middle: '杭州市文澜中学', middleTier: 1 },
+        amenities: {
+          subway: ['5号线-萍水街站 500m', '10号线-翠柏路站 800m'],
+          hospital: ['浙江省立同德医院 2km'],
+          shopping: ['城西银泰城 600m', '大悦城 1.5km'],
+          other: ['运河亚运公园 800m', '申花公园 1km']
+        },
+        pros: ['文澜中学第一梯队学区', '紧邻城西银泰', '双地铁', '申花核心'],
+        cons: ['得房率偏低', '金地品牌溢价', '总价偏高']
+      },
+      {
+        id: 40, name: '亚洲城花园', district: '西湖区',
+        lat: 30.286, lng: 120.092, totalPrice: 180, unitPrice: 20000, buildYear: 1999,
+        decline3Year: -30,
+        school: { primary: '杭州市省府路小学', primaryTier: 2, middle: '杭州市翠苑中学', middleTier: 2 },
+        amenities: {
+          subway: ['3号线-古荡站 600m', '2号线-丰潭路站 1.5km'],
+          hospital: ['浙江省立同德医院 1.5km'],
+          shopping: ['西城广场 600m', '城西银泰城 2.5km'],
+          other: ['西溪湿地 2km', '浙江大学玉泉校区 2km']
+        },
+        pros: ['总价极低', '省府路+翠苑双二梯队学区', '西湖区核心地段', '老小区绿化率高'],
+        cons: ['1999年极老小区', '无电梯（多层）', '近三年降幅极大(-30%)', '小区设施老旧']
+      },
+      {
+        id: 41, name: '金地自在城', district: '西湖区',
+        lat: 30.335, lng: 120.078, totalPrice: 420, unitPrice: 44000, buildYear: 2018,
+        decline3Year: -17,
+        school: { primary: '杭州市求是教育集团浙大附小', primaryTier: 1, middle: '杭州市第十五中学', middleTier: 2 },
+        amenities: {
+          subway: ['2号线-白洋站 600m'],
+          hospital: ['浙江医院三墩院区 2.5km'],
+          shopping: ['金地广场 300m', '紫金港龙湖天街 3km'],
+          other: ['兰里景区 800m', '浙江大学紫金港校区 3km']
+        },
+        pros: ['金地大盘，社区配套完善', '求是小学（第一梯队）学区', '紧邻金地广场', '2018年次新', '园林品质好'],
+        cons: ['总价高', '初中仅第二梯队', '大盘二手挂牌量大，竞争激烈']
+      },
+      {
+        id: 42, name: '浅水湾城市花园', district: '拱墅区',
+        lat: 30.290, lng: 120.150, totalPrice: 310, unitPrice: 33000, buildYear: 2006,
+        decline3Year: -25,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['2号线-沈塘桥站 600m', '19号线-沈塘桥站 600m'],
+          hospital: ['浙江省立同德医院 1.5km', '杭州师范大学附属医院 2km'],
+          shopping: ['大悦城 1.5km', '远洋乐堤港 2km'],
+          other: ['京杭大运河 500m', '西湖文化广场 1.5km']
+        },
+        pros: ['卖鱼桥小学学区', '双地铁沈塘桥站', '近京杭大运河', '莫干山路沿线成熟'],
+        cons: ['房龄近20年，设施老化严重', '多层无电梯', '停车极其困难', '降幅较大(-25%)']
+      },
+      {
+        id: 43, name: '云谷公寓', district: '西湖区',
+        lat: 30.315, lng: 120.070, totalPrice: 350, unitPrice: 37000, buildYear: 2020,
+        decline3Year: -18,
+        school: { primary: '杭州市求是教育集团浙大附小', primaryTier: 1, middle: '杭州市第十五中学', middleTier: 2 },
+        amenities: {
+          subway: ['4号线-云谷站 1km (在建)', '2号线-三墩站 3km'],
+          hospital: ['浙江医院三墩院区 3.5km'],
+          shopping: ['紫金港龙湖天街 3.5km', '云谷配套商业(在建)'],
+          other: ['云谷产业园区 300m', '西湖大学 2km', '阿里云总部 1km']
+        },
+        pros: ['2020年次新（万科融信西雅图）', '云谷产业核心区', '求是小学（第一梯队）学区', '阿里云/西湖大学人才聚集'],
+        cons: ['现阶段商业配套不足', '地铁尚在建', '距主城区较远', '板块成熟需时日']
+      },
+      {
+        id: 44, name: '左岸花园', district: '拱墅区',
+        lat: 30.325, lng: 120.148, totalPrice: 300, unitPrice: 32000, buildYear: 2010,
+        decline3Year: -22,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['5号线-大运河站 800m', '3号线-香积寺路站 1.2km'],
+          hospital: ['杭州师范大学附属医院 1.5km'],
+          shopping: ['远洋乐堤港 1km', '运河上街 1.2km'],
+          other: ['京杭大运河 200m', '拱宸桥 500m', '运河广场 400m']
+        },
+        pros: ['运河景观一线', '紧邻拱宸桥核心区', '卖鱼桥学区', '运河文化带核心'],
+        cons: ['2010年房龄偏老', '沿运河楼栋潮湿问题', '小区内部道路狭窄']
+      },
+      {
+        id: 45, name: '清水公寓', district: '拱墅区',
+        lat: 30.300, lng: 120.152, totalPrice: 320, unitPrice: 34000, buildYear: 2009,
+        decline3Year: -23,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['3号线-香积寺路站 600m', '1号线-打铁关站 1.5km'],
+          hospital: ['浙江省人民医院 1km', '杭州市儿童医院 1.2km'],
+          shopping: ['远洋乐堤港 1km', '水晶城购物中心 1.2km'],
+          other: ['大兜路历史街区 500m', '胜利河美食街 400m', '京杭大运河 300m']
+        },
+        pros: ['核心城区成熟配套', '卖鱼桥学区', '省人民医院近', '大兜路+胜利河美食街生活氛围'],
+        cons: ['2009年小区，品质老化', '德胜路噪音', '停车位不足', '部分楼栋采光差']
+      },
+      {
+        id: 46, name: '颐景园', district: '西湖区',
+        lat: 30.286, lng: 120.096, totalPrice: 360, unitPrice: 38000, buildYear: 2012,
+        decline3Year: -21,
+        school: { primary: '杭州市省府路小学', primaryTier: 2, middle: '杭州市翠苑中学', middleTier: 2 },
+        amenities: {
+          subway: ['2号线-丰潭路站 500m', '3号线-古荡站 1km'],
+          hospital: ['浙江省立同德医院 800m'],
+          shopping: ['城西银泰城 1km', '西城广场 800m'],
+          other: ['西溪湿地 2km', '浙江大学玉泉校区 2km']
+        },
+        pros: ['城西核心地段', '省府路+翠苑双二梯队学区', '近城西银泰+同德医院', '双地铁', '江南园林风格'],
+        cons: ['2012年房龄渐长', '园林维护成本高', '停车位不够', '部分楼栋采光受树木影响']
+      },
+      {
+        id: 47, name: '信义坊', district: '拱墅区',
+        lat: 30.295, lng: 120.144, totalPrice: 250, unitPrice: 27000, buildYear: 2005,
+        decline3Year: -26,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['3号线-香积寺路站 800m', '1号线-打铁关站 1.5km'],
+          hospital: ['浙江省人民医院 1.5km', '杭州市儿童医院 1.5km'],
+          shopping: ['远洋乐堤港 600m', '水晶城 1.2km'],
+          other: ['大兜路历史街区 300m', '香积寺 400m', '胜利河美食街 500m', '信义坊步行街 100m']
+        },
+        pros: ['信义坊商圈核心', '卖鱼桥学区', '历史文化街区环绕', '总价低'],
+        cons: ['2005年老旧小区', '无电梯多层', '停车极度困难', '房龄超20年，贷款受限', '降幅大(-26%)']
+      },
+      {
+        id: 48, name: '嘉里桦枫居南区', district: '拱墅区',
+        lat: 30.333, lng: 120.196, totalPrice: 470, unitPrice: 48000, buildYear: 2022,
+        decline3Year: -10,
+        school: { primary: '安吉路实验学校', primaryTier: 2, middle: '春蕾中学', middleTier: 2 },
+        amenities: {
+          subway: ['3号线-汽轮广场站 500m', '4号线-华中南路站 1.5km'],
+          hospital: ['树兰（杭州）医院 2.5km'],
+          shopping: ['中大银泰城 2km', '新天地购物中心 2.5km'],
+          other: ['半山国家森林公园 2km', '浙江省自然博物院 2.5km']
+        },
+        pros: ['2022年嘉里建设品质标杆', '安吉路+春蕾双二梯队学区', '近地铁3号线', '降幅小，保值性好'],
+        cons: ['总价/单价双高', '石桥/华丰板块非传统豪宅区', '周边界面一般']
+      },
+      {
+        id: 49, name: '首开国风美域', district: '西湖区',
+        lat: 30.310, lng: 120.085, totalPrice: 330, unitPrice: 35000, buildYear: 2017,
+        decline3Year: -20,
+        school: { primary: '杭州市求是教育集团浙大附小', primaryTier: 1, middle: '杭州市第十五中学', middleTier: 2 },
+        amenities: {
+          subway: ['2号线-三墩站 800m', '4号线-紫金港路站 1.2km'],
+          hospital: ['浙江医院三墩院区 1.5km'],
+          shopping: ['紫金港龙湖天街 1.5km', '金地广场 2km'],
+          other: ['浙江大学紫金港校区 2km', '兰里景区 1.5km']
+        },
+        pros: ['求是小学（第一梯队）学区', '2017年首开品质', '近2号线', '三墩成熟区'],
+        cons: ['初中仅第二梯队', '近绕城高速', '首开品牌在杭认知度一般']
+      },
+      {
+        id: 50, name: '西溪花园白荻苑', district: '西湖区',
+        lat: 30.270, lng: 120.072, totalPrice: 260, unitPrice: 28000, buildYear: 2009,
+        decline3Year: -26,
+        school: { primary: '文三街小学', primaryTier: 1, middle: '杭州市第十三中学', middleTier: 1 },
+        amenities: {
+          subway: ['19号线-西溪湿地北站 1.2km', '5号线-蒋村站 1.5km'],
+          hospital: ['浙江省立同德医院 3km'],
+          shopping: ['西溪印象城 2km', '西溪天堂商业街 1.5km'],
+          other: ['西溪国家湿地公园 500m', '西溪文化创意园 1km']
+        },
+        pros: ['第一梯队双学区（文三街+十三中）！', '紧邻西溪湿地，环境绝佳', '总价低，学区+环境双优', '稀缺资源'],
+        cons: ['2009年房龄老', '多层无电梯', '距地铁较远', '老小区物业差', '降幅大(-26%)', '部分户型差']
+      },
+      {
+        id: 51, name: '保利都和轩', district: '拱墅区',
+        lat: 30.340, lng: 120.200, totalPrice: 230, unitPrice: 25000, buildYear: 2016,
+        decline3Year: -26,
+        school: { primary: '杭州市求知小学', primaryTier: 3, middle: '杭州市风华中学', middleTier: 3 },
+        amenities: {
+          subway: ['3号线-华丰路站 800m', '4号线-华中南路站 1.5km'],
+          hospital: ['树兰（杭州）医院 3km'],
+          shopping: ['中大银泰城 2.5km', '新天地购物中心 3km'],
+          other: ['半山国家森林公园 2km', '杭州北站 1.5km']
+        },
+        pros: ['低总价', '2016年小区，保利品牌', '近3号线地铁'],
+        cons: ['学区第三梯队', '地铁较远', '周边配套不足', '降幅大(-26%)', '华丰板块认知度低']
+      },
+      {
+        id: 52, name: '富丽苑', district: '西湖区',
+        lat: 30.276, lng: 120.113, totalPrice: 290, unitPrice: 31000, buildYear: 2007,
+        decline3Year: -25,
+        school: { primary: '文三街小学', primaryTier: 1, middle: '杭州市第十三中学', middleTier: 1 },
+        amenities: {
+          subway: ['2号线-丰潭路站 500m', '19号线-五联站 800m'],
+          hospital: ['浙江省立同德医院 800m'],
+          shopping: ['城西银泰城 1km', '西城广场 500m'],
+          other: ['西溪湿地 2km', '浙江大学玉泉校区 2.5km']
+        },
+        pros: ['第一梯队双学区（文三街+十三中）！', '城西核心地段', '紧邻西城广场', '西湖区学籍'],
+        cons: ['2007年老旧小区', '无电梯多层', '停车困难', '房龄超15年，贷款受限']
+      },
+      {
+        id: 53, name: '沁雅花园', district: '西湖区',
+        lat: 30.276, lng: 120.110, totalPrice: 320, unitPrice: 34000, buildYear: 2008,
+        decline3Year: -23,
+        school: { primary: '文三街小学', primaryTier: 1, middle: '杭州市第十三中学', middleTier: 1 },
+        amenities: {
+          subway: ['2号线-丰潭路站 500m', '19号线-五联站 600m'],
+          hospital: ['浙江省立同德医院 600m'],
+          shopping: ['城西银泰城 800m', '西城广场 600m'],
+          other: ['西溪湿地 2km', '浙江大学玉泉校区 2km']
+        },
+        pros: ['第一梯队双学区（文三街+十三中）！', '城西最核心地段', '紧邻银泰+同德+地铁', '生活配套满分'],
+        cons: ['2008年房龄老', '学区溢价高，总价不低', '多层无电梯楼栋多', '老小区停车难', '学区政策变动风险']
+      },
+      {
+        id: 54, name: '假山新村', district: '拱墅区',
+        lat: 30.301, lng: 120.154, totalPrice: 230, unitPrice: 24800, buildYear: 2004,
+        decline3Year: -27,
+        school: { primary: '卖鱼桥小学文津校区', primaryTier: 2, middle: '大关中学', middleTier: 2 },
+        amenities: {
+          subway: ['3号线-香积寺路站 800m', '1号线-打铁关站 1.2km'],
+          hospital: ['浙江省人民医院 1km', '杭州市儿童医院 800m'],
+          shopping: ['远洋乐堤港 1km', '水晶城购物中心 1.2km'],
+          other: ['大兜路历史街区 500m', '京杭大运河 500m', '胜利河美食街 300m']
+        },
+        pros: ['卖鱼桥学区', '地段核心（德胜/湖墅）', '总价低', '近运河+美食街'],
+        cons: ['2004年极老旧小区', '无电梯', '户型老旧（暗厅暗卫）', '小区环境差', '贷款年限受限', '降幅大(-27%)']
+      },
+      {
+        id: 55, name: '滨江堂悦芳华轩', district: '拱墅区',
+        lat: 30.336, lng: 120.192, totalPrice: 520, unitPrice: 53000, buildYear: 2023,
+        decline3Year: -8,
+        school: { primary: '安吉路实验学校', primaryTier: 2, middle: '春蕾中学', middleTier: 2 },
+        amenities: {
+          subway: ['3号线-汽轮广场站 400m', '4号线-华中南路站 1.2km'],
+          hospital: ['树兰（杭州）医院 2.5km'],
+          shopping: ['中大银泰城 2km', '新天地购物中心 2.5km'],
+          other: ['半山国家森林公园 1.5km', '杭州北站 2km']
+        },
+        pros: ['2023年滨江集团最新力作', '紧邻地铁3号线', '安吉路+春蕾双二梯队学区', '降幅极小(-8%)保值性强'],
+        cons: ['总价/单价双高', '石桥/华丰板块非传统豪宅区', '周边界面一般']
+      }
+    ];
+
+    /* =================================================================
+     *  工具函数
+     * ================================================================= */
+    function getPriceLevel(totalPrice) {
+      if (totalPrice < 250) return 'green';
+      if (totalPrice < 450) return 'orange';
+      return 'red';
+    }
+    function getPriceColor(level) {
+      return { green: '#27ae60', orange: '#f39c12', red: '#e74c3c' }[level] || '#999';
+    }
+    function formatUnitPrice(price) {
+      return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+    function tierLabel(t) { return '第' + t + '梯队'; }
+    function tierClass(t) { return 'tier' + t; }
+
+    /** 降幅等级：≤-25 红色预警，-15~-25 橙色，≥-15 绿色 */
+    function declineClass(rate) {
+      if (rate <= -25) return 'high';
+      if (rate <= -15) return 'mid';
+      return 'low';
+    }
+
+    function debounce(fn, delay) {
+      var timer = null;
+      return function () {
+        var ctx = this, args = arguments;
+        clearTimeout(timer);
+        timer = setTimeout(function () { fn.apply(ctx, args); }, delay);
+      };
+    }
+
+    /* =================================================================
+     *  创建地图标记图标
+     * ================================================================= */
+    function createMarkerIcon(totalPrice) {
+      var level = getPriceLevel(totalPrice);
+      var color = getPriceColor(level);
+      var s = 34;
+      return L.divIcon({
+        className: 'custom-house-marker',
+        html: '<div style="width:' + s + 'px;height:' + s + 'px;background:' + color
+          + ';border-radius:50%;display:flex;align-items:center;justify-content:center;'
+          + 'border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);font-size:17px;cursor:pointer;">🏠</div>',
+        iconSize: [s, s],
+        iconAnchor: [s / 2, s / 2],
+        popupAnchor: [0, -(s / 2 + 4)]
+      });
+    }
+
+    /* =================================================================
+     *  创建信息弹窗 HTML（含学区梯队、降幅、优劣分析）
+     * ================================================================= */
+    function createPopupContent(prop) {
+      var level = getPriceLevel(prop.totalPrice);
+      var dClass = declineClass(prop.decline3Year);
+      var dLabel = dClass === 'high' ? '降幅较大' : dClass === 'mid' ? '降幅适中' : '降幅较小';
+
+      // 配套分类
+      var amenityCfg = [
+        { key: 'subway', icon: '🚇' },
+        { key: 'hospital', icon: '🏥' },
+        { key: 'shopping', icon: '🛒' },
+        { key: 'other', icon: '📍' }
+      ];
+      var amHtml = '';
+      for (var i = 0; i < amenityCfg.length; i++) {
+        var c = amenityCfg[i];
+        var items = prop.amenities[c.key];
+        if (items && items.length > 0) {
+          amHtml += '<div class="popup-card__amenity-row">'
+            + '<span class="popup-card__amenity-icon">' + c.icon + '</span>'
+            + '<span class="popup-card__amenity-text">' + items.join(' · ') + '</span></div>';
+        }
+      }
+
+      // 优劣分析
+      var prosHtml = '', consHtml = '';
+      for (var pi = 0; pi < prop.pros.length; pi++) {
+        prosHtml += '<div class="popup-card__pro-item">✅ ' + prop.pros[pi] + '</div>';
+      }
+      for (var ci = 0; ci < prop.cons.length; ci++) {
+        consHtml += '<div class="popup-card__con-item">⚠️ ' + prop.cons[ci] + '</div>';
+      }
+
+      return '<div class="popup-card">'
+        + '<div class="popup-card__header">'
+        + '<div class="popup-card__name">' + prop.name + '</div>'
+        + '<div class="popup-card__sub">'
+        + '<span>' + prop.district + '</span>'
+        + '<span>·</span>'
+        + '<span>' + prop.buildYear + '年建成</span>'
+        + '</div></div>'
+        + '<div class="popup-card__body">'
+        // 价格行
+        + '<div class="popup-card__prices">'
+        + '<div class="popup-card__price-item"><div class="popup-card__price-label">总价</div>'
+        + '<div class="popup-card__price-value">' + prop.totalPrice + '<span class="popup-card__price-unit"> 万元</span></div></div>'
+        + '<div class="popup-card__price-item"><div class="popup-card__price-label">均价</div>'
+        + '<div class="popup-card__price-value">' + formatUnitPrice(prop.unitPrice) + '<span class="popup-card__price-unit"> 元/㎡</span></div></div>'
+        + '<div class="popup-card__price-item"><div class="popup-card__price-label">近三年</div>'
+        + '<span class="popup-card__decline-badge ' + dClass + '">↓' + Math.abs(prop.decline3Year) + '% ' + dLabel + '</span></div>'
+        + '</div>'
+        // 学区信息
+        + '<div class="popup-card__school-section">'
+        + '<div class="popup-card__school-title">🎓 学区信息</div>'
+        + '<div class="popup-card__school-row"><span class="popup-card__school-name">🏫 小学：' + prop.school.primary + '</span>'
+        + '<span class="tier-badge ' + tierClass(prop.school.primaryTier) + '">' + tierLabel(prop.school.primaryTier) + '</span></div>'
+        + '<div class="popup-card__school-row"><span class="popup-card__school-name">🏛️ 初中：' + prop.school.middle + '</span>'
+        + '<span class="tier-badge ' + tierClass(prop.school.middleTier) + '">' + tierLabel(prop.school.middleTier) + '</span></div>'
+        + '</div>'
+        // 周边配套
+        + '<div class="popup-card__amenities">' + amHtml + '</div>'
+        // 优劣分析
+        + '<div class="popup-card__analysis">'
+        + '<div class="popup-card__analysis-title">📊 优劣分析</div>'
+        + '<div class="popup-card__pros"><span class="popup-card__pro-label">优势</span>' + prosHtml + '</div>'
+        + '<div class="popup-card__cons"><span class="popup-card__con-label">劣势</span>' + consHtml + '</div>'
+        + '</div>'
+        + '</div></div>';
+    }
+
+    /* =================================================================
+     *  创建侧边栏列表项 HTML
+     * ================================================================= */
+    function createListItemHtml(prop, isActive) {
+      var level = getPriceLevel(prop.totalPrice);
+      var dClass = declineClass(prop.decline3Year);
+      var dDisp = prop.decline3Year + '%';
+      var activeClass = isActive ? ' active' : '';
+
+      return '<div class="property-card' + activeClass + '" data-id="' + prop.id + '">'
+        + '<span class="price-dot price-dot--' + level + '"></span>'
+        + '<div class="property-card__info">'
+        + '<div class="property-card__name">' + prop.name + '</div>'
+        + '<div class="property-card__detail">'
+        + '<span class="property-card__price">' + prop.totalPrice + '万</span>'
+        + '<span>' + formatUnitPrice(prop.unitPrice) + '元/㎡</span>'
+        + '<span class="property-card__decline ' + (dClass === 'high' ? 'bad' : dClass === 'mid' ? 'mid' : 'good') + '">↓' + dDisp + '</span>'
+        + '<span class="property-card__school ' + tierClass(prop.school.primaryTier) + '">小' + tierLabel(prop.school.primaryTier) + '</span>'
+        + '<span class="property-card__school ' + tierClass(prop.school.middleTier) + '">初' + tierLabel(prop.school.middleTier) + '</span>'
+        + '</div></div>'
+        + '<span class="property-card__arrow">›</span></div>';
+    }
+
+    /* =================================================================
+     *  全局状态
+     * ================================================================= */
+    var map = null;
+    var markersLayer = null;
+    var propertyMarkers = {};
+    var activePropertyId = null;
+    var isMobile = false;
+    var currentFilter = '';
+
+    var searchInput = document.getElementById('searchInput');
+    var searchClear = document.getElementById('searchClear');
+    var propertyList = document.getElementById('propertyList');
+    var sidebar = document.getElementById('sidebar');
+    var drawerToggle = document.getElementById('drawerToggle');
+    var drawerCount = document.getElementById('drawerCount');
+    var sidebarCount = document.getElementById('sidebarCount');
+
+    /* =================================================================
+     *  初始化地图
+     * ================================================================= */
+    function initMap() {
+      map = L.map('map', { zoomControl: false, attributionControl: true });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19
+      }).addTo(map);
+      L.control.zoom({ position: 'topright' }).addTo(map);
+
+      markersLayer = L.layerGroup().addTo(map);
+
+      for (var i = 0; i < properties.length; i++) {
+        var prop = properties[i];
+        var marker = createMarker(prop);
+        propertyMarkers[prop.id] = marker;
+        markersLayer.addLayer(marker);
+      }
+
+      fitMapToProperties(properties);
+
+      // 点击地图空白区域 → 移动端收起抽屉
+      map.on('click', function () {
+        if (isMobile) collapseDrawer();
+      });
+
+      window.addEventListener('resize', function () { map.invalidateSize(); });
+    }
+
+    function createMarker(prop) {
+      var icon = createMarkerIcon(prop.totalPrice);
+      var marker = L.marker([prop.lat, prop.lng], { icon: icon });
+      marker.bindPopup(createPopupContent(prop), {
+        maxWidth: 400, minWidth: 300, className: 'custom-popup'
+      });
+      marker.on('popupopen', function () { highlightListItem(prop.id); });
+      marker.on('popupclose', function () { unhighlightListItem(); });
+      return marker;
+    }
+
+    function fitMapToProperties(list) {
+      if (list.length === 0) return;
+      var bounds = L.latLngBounds(list.map(function (p) { return [p.lat, p.lng]; }));
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13 });
+    }
+
+    /* =================================================================
+     *  渲染房源列表
+     * ================================================================= */
+    function renderPropertyList(list) {
+      if (list.length === 0) {
+        propertyList.innerHTML = '<div class="sidebar__empty">😕 没有匹配的房源</div>';
+      } else {
+        var html = '';
+        for (var i = 0; i < list.length; i++) {
+          html += createListItemHtml(list[i], activePropertyId === list[i].id);
+        }
+        propertyList.innerHTML = html;
+        var cards = propertyList.querySelectorAll('.property-card');
+        for (var j = 0; j < cards.length; j++) {
+          cards[j].addEventListener('click', function () {
+            onPropertySelect(parseInt(this.getAttribute('data-id')));
+          });
+        }
+      }
+      updateCountDisplay(list.length);
+    }
+
+    function updateCountDisplay(count) {
+      var total = properties.length;
+      var text = count + ' / ' + total + ' 个小区';
+      drawerCount.textContent = '共 ' + text;
+      sidebarCount.textContent = text;
+    }
+
+    /* =================================================================
+     *  列表与地图联动
+     * ================================================================= */
+    function onPropertySelect(id) {
+      var marker = propertyMarkers[id];
+      if (!marker) return;
+      map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 14), { duration: 0.7 });
+      marker.openPopup();
+      if (isMobile) collapseDrawer();
+    }
+
+    function highlightListItem(id) {
+      unhighlightListItem();
+      activePropertyId = id;
+      var card = propertyList.querySelector('.property-card[data-id="' + id + '"]');
+      if (card) { card.classList.add('active'); card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    }
+
+    function unhighlightListItem() {
+      activePropertyId = null;
+      var cards = propertyList.querySelectorAll('.property-card.active');
+      for (var i = 0; i < cards.length; i++) { cards[i].classList.remove('active'); }
+    }
+
+    /* =================================================================
+     *  搜索 / 筛选
+     * ================================================================= */
+    function filterProperties(query) {
+      currentFilter = query;
+      var filtered;
+      if (query) {
+        filtered = properties.filter(function (p) {
+          return p.name.toLowerCase().indexOf(query) > -1
+            || p.district.toLowerCase().indexOf(query) > -1;
+        });
+        searchClear.classList.add('visible');
+      } else {
+        filtered = properties.slice();
+        searchClear.classList.remove('visible');
+      }
+      markersLayer.clearLayers();
+      for (var i = 0; i < filtered.length; i++) {
+        markersLayer.addLayer(propertyMarkers[filtered[i].id]);
+      }
+      renderPropertyList(filtered);
+      if (filtered.length > 0) fitMapToProperties(filtered);
+    }
+
+    searchInput.addEventListener('input', debounce(function () {
+      filterProperties(searchInput.value.trim().toLowerCase());
+    }, 200));
+
+    searchClear.addEventListener('click', function () {
+      searchInput.value = '';
+      filterProperties('');
+      searchInput.focus();
+    });
+
+    /* =================================================================
+     *  移动端底部抽屉交互
+     * ================================================================= */
+    function checkMobile() {
+      isMobile = window.innerWidth < 768;
+      if (isMobile) { sidebar.classList.remove('expanded'); }
+      else { sidebar.classList.remove('expanded'); }
+    }
+
+    function expandDrawer() {
+      if (isMobile) {
+        sidebar.classList.add('expanded');
+        var arr = drawerToggle.querySelector('span:last-child');
+        if (arr) arr.textContent = '▼';
+      }
+    }
+
+    function collapseDrawer() {
+      if (isMobile) {
+        sidebar.classList.remove('expanded');
+        var arr = drawerToggle.querySelector('span:last-child');
+        if (arr) arr.textContent = '▲';
+      }
+    }
+
+    function toggleDrawer() {
+      sidebar.classList.contains('expanded') ? collapseDrawer() : expandDrawer();
+    }
+
+    drawerToggle.addEventListener('click', function (e) { e.stopPropagation(); toggleDrawer(); });
+
+    window.addEventListener('resize', function () { checkMobile(); });
+
+    /* =================================================================
+     *  键盘快捷键
+     * ================================================================= */
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        if (currentFilter) { searchInput.value = ''; filterProperties(''); }
+        if (map) map.closePopup();
+      }
+    });
+
+    /* =================================================================
+     *  启动
+     * ================================================================= */
+    function init() {
+      checkMobile();
+      initMap();
+      renderPropertyList(properties);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  </script>
+</body>
+</html>
+<!--
+  ================================================================================
+  部署说明
+
+  1. 本地使用：直接双击 index.html 用浏览器打开（需网络加载 Leaflet CDN 和地图瓦片）。
+
+  2. GitHub Pages：
+     - 将 index.html 推送到 GitHub 仓库。
+     - Settings → Pages → 选择分支 → 保存，自动部署。
+     - 访问 https://<用户名>.github.io/<仓库名>/
+
+  3. Vercel / Netlify：直接拖入 index.html 即可。
+
+  4. 修改数据：编辑 properties = [...] 数组，参照已有格式添加/修改。
+
+  5. 坐标获取：高德坐标拾取器 https://lbs.amap.com/tools/picker
+     注意：本文件使用 WGS84 坐标，高德坐标（GCJ-02）需转换为 WGS84。
+
+  6. 主题色修改：在 <style> 顶部 :root {} 中修改 CSS 变量。
+
+  数据说明：
+  - 学区梯队为杭州民间通用分类，仅供参考。
+  - 近三年降幅为 2023-2026 年市场估算值，非精确统计。
+  - 坐标和配套信息基于公开资料整理，实际情况请实地核实。
+  ================================================================================
+-->
